@@ -112,24 +112,10 @@ class AlgoSwitcherGUI:
         # A/B Testing status field (initially hidden)
         self.ab_field_frame = ttk.Frame(right_frame)
         
-        # Progress bar
-        self.progress_label = ttk.Label(self.ab_field_frame, text="Progress: 0/10", 
-                                       font=('Arial', 9))
-        self.progress_label.pack(pady=5)
-        
-        self.progress_bar = ttk.Progressbar(self.ab_field_frame, mode='determinate', 
-                                           length=250, maximum=10)
-        self.progress_bar.pack(pady=5)
-        
         # Test name label
         self.test_name_label = ttk.Label(self.ab_field_frame, text="", 
                                         font=('Arial', 12, 'bold'), foreground='blue')
         self.test_name_label.pack(pady=10)
-        
-        # Repetition counter label
-        self.repetition_label = ttk.Label(self.ab_field_frame, text="", 
-                                         font=('Arial', 9), foreground='gray')
-        self.repetition_label.pack(pady=2)
         
         # Instruction label
         self.instruction_label = ttk.Label(self.ab_field_frame, text="", 
@@ -137,9 +123,19 @@ class AlgoSwitcherGUI:
                                           wraplength=280, justify=tk.CENTER)
         self.instruction_label.pack(pady=10)
         
+        # Repetition counter label
+        self.repetition_label = ttk.Label(self.ab_field_frame, text="", 
+                                         font=('Arial', 16), foreground='gray')
+        self.repetition_label.pack(pady=2)
+        
+        # Progress bar
+        self.progress_bar = ttk.Progressbar(self.ab_field_frame, mode='determinate', 
+                                           length=250, maximum=10)
+        self.progress_bar.pack(pady=5)
+        
         # Completed button frame
         self.completed_frame = ttk.Frame(self.ab_field_frame)
-        self.completed_button = ttk.Button(self.completed_frame, text="I've completed this insctruction", 
+        self.completed_button = ttk.Button(self.completed_frame, text="I've completed this instruction", 
                                           command=self.on_test_completed)
         self.completed_button.pack(pady=10)
         
@@ -444,27 +440,26 @@ class AlgoSwitcherGUI:
         
         # Update progress
         self.progress_bar['value'] = self.current_repetition
-        self.progress_label.config(text=f"Progress: {self.current_repetition}/{self.total_repetitions}")
         
         # Update test display
         self.test_name_label.config(text=test['name'])
         self.repetition_label.config(text=f"Repetition {self.current_repetition + 1} of {self.total_repetitions}")
         self.instruction_label.config(text=test['instruction'])
         
-        # Hide feedback frame, show completed button
-        self.feedback_frame.pack_forget()
-        self.completed_frame.pack(pady=10)
+        # First repetition: show completed button; subsequent repetitions: show feedback directly
+        if self.current_repetition == 0:
+            self.feedback_frame.pack_forget()
+            self.completed_frame.pack(pady=10)
+        else:
+            self.completed_frame.pack_forget()
+            self.feedback_frame.pack(pady=10)
     
     def on_test_completed(self):
-        """Called when user confirms they completed the test"""
+        """Called when user confirms they completed the test (first repetition only)"""
         # Hide completed button
         self.completed_frame.pack_forget()
-        if self.current_repetition == 0:
-            # First repetition - no comparison, auto advance
-            self.record_feedback("N/A (First)")
-        else:
-            # Show feedback options
-            self.feedback_frame.pack(pady=10)
+        # First repetition - no comparison, auto advance
+        self.record_feedback("N/A (First)")
     
     # (Removed duplicate/old record_feedback definition. Only the new one with comment=None remains.)
     
