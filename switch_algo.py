@@ -316,17 +316,45 @@ class AlgoSwitcherGUI:
             return None
         
         config = configparser.ConfigParser()
+        
+        # Try different encodings and methods
+        encodings = ['utf-8-sig', 'utf-8', 'utf-16', 'cp1252', 'latin-1']
+        
+        for encoding in encodings:
+            try:
+                config.read(self.ini_path, encoding=encoding)
+                # Verify config was read (has sections)
+                if config.sections() or config.defaults():
+                    return config
+            except UnicodeDecodeError:
+                continue
+            except configparser.Error as e:
+                # Invalid INI format with this encoding, try next
+                continue
+            except Exception as e:
+                continue
+        
+        # If all encodings fail, show detailed error
         try:
-            config.read(self.ini_path)
-            return config
+            # Try to read file content for diagnostic info
+            with open(self.ini_path, 'rb') as f:
+                content = f.read(500)  # Read first 500 bytes
+            hex_preview = content[:100].hex()
+            messagebox.showerror("Error", 
+                f"Failed to read INI file with any encoding.\n\n"
+                f"File: {self.ini_path}\n"
+                f"First bytes (hex): {hex_preview}\n\n"
+                f"The file may be corrupted or in an unsupported format.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to read INI file:\n{str(e)}")
-            return None
+        
+        return None
     
     def write_ini(self, config):
         """Write ConfigParser object back to INI file"""
         try:
-            with open(self.ini_path, 'w') as configfile:
+            # Use UTF-8 without BOM for better compatibility
+            with open(self.ini_path, 'w', encoding='utf-8') as configfile:
                 config.write(configfile)
             return True
         except Exception as e:
