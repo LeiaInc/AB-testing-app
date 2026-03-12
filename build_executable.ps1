@@ -188,6 +188,12 @@ if (Test-Path "$ScriptDir\abtesting_instructions\instructions.xlsx") {
     Copy-Item "$ScriptDir\abtesting_instructions\instructions.xlsx" "$packageDir\abtesting_instructions\"
 }
 
+# Copy README.md
+if (Test-Path "$ScriptDir\README.md") {
+    Copy-Item "$ScriptDir\README.md" "$packageDir\"
+    Write-Host "  OK Added README.md to package" -ForegroundColor Green
+}
+
 # Copy eyetracker-service executable
 if ($eyetrackerFile) {
     New-Item -ItemType Directory -Path "$packageDir\eyetracker_to_test" | Out-Null
