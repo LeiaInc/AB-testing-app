@@ -159,8 +159,20 @@ if (Test-Path "dist\AlgoSwitcher.exe") {
     exit 1
 }
 
+# Find and extract eyetracker-service version
+$eyetrackerFile = Get-ChildItem "$ScriptDir\eyetracker_to_test" -Filter "eyetracker-service-*-win64-Release.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+$eyetrackerVersion = $null
+if ($eyetrackerFile) {
+    # Extract version from filename: eyetracker-service-<version>-win64-Release.exe
+    if ($eyetrackerFile.Name -match "eyetracker-service-([\d.]+)-win64-Release\.exe") {
+        $eyetrackerVersion = $matches[1]
+        Write-Host "  OK Found eyetracker-service version: $eyetrackerVersion" -ForegroundColor Green
+    }
+}
+
 # Create zip package with executable and instructions
-$zipName = "AlgoSwitcher_$gitHash.zip"
+$versionSuffix = if ($eyetrackerVersion) { "_et$eyetrackerVersion" } else { "" }
+$zipName = "AlgoSwitcher_$gitHash$versionSuffix.zip"
 $zipPath = "$ScriptDir\$zipName"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
@@ -169,9 +181,18 @@ $packageDir = "$ScriptDir\package_temp"
 if (Test-Path $packageDir) { Remove-Item $packageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $packageDir | Out-Null
 Copy-Item $exePath $packageDir\
+
+# Copy abtesting instructions
 if (Test-Path "$ScriptDir\abtesting_instructions\instructions.xlsx") {
     New-Item -ItemType Directory -Path "$packageDir\abtesting_instructions" | Out-Null
     Copy-Item "$ScriptDir\abtesting_instructions\instructions.xlsx" "$packageDir\abtesting_instructions\"
+}
+
+# Copy eyetracker-service executable
+if ($eyetrackerFile) {
+    New-Item -ItemType Directory -Path "$packageDir\eyetracker_to_test" | Out-Null
+    Copy-Item $eyetrackerFile.FullName "$packageDir\eyetracker_to_test\"
+    Write-Host "  OK Added eyetracker-service to package" -ForegroundColor Green
 }
 
 Compress-Archive -Path "$packageDir\*" -DestinationPath $zipPath
