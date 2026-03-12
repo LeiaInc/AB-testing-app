@@ -6,7 +6,7 @@ Application for A/B testing of SR Eye Tracker.
 
 ### Setup
 
-1. **Install the SR Eye Tracker build that supports seamless algorithm switching. The build can be found in this package under ./eyetracker_to_test/.
+1. **Install the SR Eye Tracker build that supports seamless algorithm switching. The build can be found in this package under ./eyetracker_to_test/**.
 
 2. **Run the "Algo Switcher" test app executable as Administrator**.
 
@@ -28,6 +28,6 @@ For the following testing, open up and view a static stereo image in **LeiaPlaye
 
 #### Running the Test
 
-4. **Click "Start A/B Testing"**
+5. **Click "Start A/B Testing"**
    
    There will be 4 different test conditions. Follow the instructions provided and record your observations over the 10 repetitions for each test condition.
