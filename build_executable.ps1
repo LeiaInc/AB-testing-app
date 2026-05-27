@@ -1,8 +1,8 @@
-# Build Script for AlgoSwitcher Executable
-# This script builds a standalone executable using PyInstaller
+# Build Script for AlgoSwitcher and StabilizationSwitcher Executables
+# This script builds standalone executables using PyInstaller
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  AlgoSwitcher Build Script" -ForegroundColor Cyan
+Write-Host "  Multi-Tool Build Script" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -66,21 +66,22 @@ foreach ($package in $requiredPackages) {
 
 # Clean previous build
 Write-Host ""
-Write-Host "[3/6] Cleaning previous build..." -ForegroundColor Yellow
-if (Test-Path "build\AlgoSwitcher") {
-    Remove-Item "build\AlgoSwitcher" -Recurse -Force
+Write-Host "[3/7] Cleaning previous build..." -ForegroundColor Yellow
+if (Test-Path "build") {
+    Remove-Item "build" -Recurse -Force
     Write-Host "  OK Removed old build directory" -ForegroundColor Green
 }
-if (Test-Path "dist\AlgoSwitcher.exe") {
-    Remove-Item "dist\AlgoSwitcher.exe" -Force
-    Write-Host "  OK Removed old executable" -ForegroundColor Green
+if (Test-Path "dist") {
+    Remove-Item "dist" -Recurse -Force
+    Write-Host "  OK Removed old dist directory" -ForegroundColor Green
 }
 
 # Update spec file with data files
 Write-Host ""
-Write-Host "[4/6] Preparing spec file..." -ForegroundColor Yellow
+Write-Host "[4/7] Preparing spec files..." -ForegroundColor Yellow
 
-$specContent = @"
+# Spec file for AlgoSwitcher
+$specContent1 = @"
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
@@ -121,58 +122,131 @@ exe = EXE(
 )
 "@
 
-Set-Content -Path "AlgoSwitcher.spec" -Value $specContent
-Write-Host "  OK Spec file updated" -ForegroundColor Green
+Set-Content -Path "AlgoSwitcher.spec" -Value $specContent1
+Write-Host "  OK AlgoSwitcher.spec created" -ForegroundColor Green
 
-# Build executable
+# Spec file for StabilizationSwitcher
+$specContent2 = @"
+# -*- mode: python ; coding: utf-8 -*-
+
+a = Analysis(
+    ['stabilization_switcher.py'],
+    pathex=[],
+    binaries=[],
+    datas=[],
+    hiddenimports=[],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='StabilizationSwitcher',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
+"@
+
+Set-Content -Path "StabilizationSwitcher.spec" -Value $specContent2
+Write-Host "  OK StabilizationSwitcher.spec created" -ForegroundColor Green
+
+# Build executables
 Write-Host ""
-Write-Host "[5/6] Building executable with PyInstaller..." -ForegroundColor Yellow
+Write-Host "[5/7] Building executables with PyInstaller..." -ForegroundColor Yellow
 Write-Host "  This may take a few minutes..." -ForegroundColor Cyan
 Write-Host ""
 
+# Build AlgoSwitcher
+Write-Host "  Building AlgoSwitcher..." -ForegroundColor Cyan
 & $pythonCmd -m PyInstaller AlgoSwitcher.spec --clean --noconfirm
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "  X Build failed!" -ForegroundColor Red
+    Write-Host "  X AlgoSwitcher build failed!" -ForegroundColor Red
     exit 1
 }
+Write-Host "  OK AlgoSwitcher built successfully" -ForegroundColor Green
 
+# Build StabilizationSwitcher
+Write-Host "  Building StabilizationSwitcher..." -ForegroundColor Cyan
+& $pythonCmd -m PyInstaller StabilizationSwitcher.spec --clean --noconfirm
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "  X StabilizationSwitcher build failed!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "  OK StabilizationSwitcher built successfully" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "[6/7] Preparing distribution package..." -ForegroundColor Yellow
 
 # Get short git hash
-$gitHash = (& git rev-parse --short HEAD).Trim()
-if (-not $gitHash) {
+$gitHash = (& git rev-parse --short HEAD 2>&1)
+if ($LASTEXITCODE -ne 0 -or -not $gitHash) {
     $gitHash = "unknown"
 }
 
-# Rename executable with hash
-$exeName = "AlgoSwitcher_$gitHash.exe"
-$exePath = "dist\$exeName"
+# Rename executables with hash
+$exeName1 = "AlgoSwitcher_$gitHash.exe"
+$exePath1 = "dist\$exeName1"
 if (Test-Path "dist\AlgoSwitcher.exe") {
-    Rename-Item "dist\AlgoSwitcher.exe" $exeName -Force
-    $fileSize = (Get-Item $exePath).Length / 1MB
-    Write-Host "  OK Executable created successfully!" -ForegroundColor Green
-    Write-Host "  Location: $exePath" -ForegroundColor Cyan
-    Write-Host "  Size: $([math]::Round($fileSize, 2)) MB" -ForegroundColor Cyan
+    Rename-Item "dist\AlgoSwitcher.exe" $exeName1 -Force
+    $fileSize1 = (Get-Item $exePath1).Length / 1MB
+    Write-Host "  OK AlgoSwitcher executable: $exeName1 ($([math]::Round($fileSize1, 2)) MB)" -ForegroundColor Green
 } else {
-    Write-Host "  X Executable not found!" -ForegroundColor Red
+    Write-Host "  X AlgoSwitcher executable not found!" -ForegroundColor Red
+    exit 1
+}
+
+$exeName2 = "StabilizationSwitcher_$gitHash.exe"
+$exePath2 = "dist\$exeName2"
+if (Test-Path "dist\StabilizationSwitcher.exe") {
+    Rename-Item "dist\StabilizationSwitcher.exe" $exeName2 -Force
+    $fileSize2 = (Get-Item $exePath2).Length / 1MB
+    Write-Host "  OK StabilizationSwitcher executable: $exeName2 ($([math]::Round($fileSize2, 2)) MB)" -ForegroundColor Green
+} else {
+    Write-Host "  X StabilizationSwitcher executable not found!" -ForegroundColor Red
     exit 1
 }
 
 # Find and extract eyetracker-service version
+Write-Host ""
+Write-Host "[7/7] Creating distribution package..." -ForegroundColor Yellow
+
 $eyetrackerFile = Get-ChildItem "$ScriptDir\eyetracker_to_test" -Filter "eyetracker-service-*-win64-Release.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 $eyetrackerVersion = $null
 if ($eyetrackerFile) {
     # Extract version from filename: eyetracker-service-<version>-win64-Release.exe
     if ($eyetrackerFile.Name -match "eyetracker-service-([\d.]+)-win64-Release\.exe") {
         $eyetrackerVersion = $matches[1]
-        Write-Host "  OK Found eyetracker-service version: $eyetrackerVersion" -ForegroundColor Green
+        Write-Host "  Found eyetracker-service version: $eyetrackerVersion" -ForegroundColor Cyan
     }
 }
 
-# Create zip package with executable and instructions
+# Create zip package with executables and instructions
 $versionSuffix = if ($eyetrackerVersion) { "_et$eyetrackerVersion" } else { "" }
-$zipName = "AlgoSwitcher_$gitHash$versionSuffix.zip"
+$zipName = "EyeTrackerTools_$gitHash$versionSuffix.zip"
 $zipPath = "$ScriptDir\$zipName"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 
@@ -180,7 +254,11 @@ if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
 $packageDir = "$ScriptDir\package_temp"
 if (Test-Path $packageDir) { Remove-Item $packageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $packageDir | Out-Null
-Copy-Item $exePath $packageDir\
+
+# Copy both executables
+Copy-Item $exePath1 $packageDir\
+Copy-Item $exePath2 $packageDir\
+Write-Host "  OK Added both executables to package" -ForegroundColor Green
 
 # Copy abtesting instructions
 if (Test-Path "$ScriptDir\abtesting_instructions\instructions.xlsx") {
@@ -212,8 +290,15 @@ Write-Host ""
 Write-Host "Your package is ready at:" -ForegroundColor White
 Write-Host "  $zipPath" -ForegroundColor Cyan
 Write-Host "" 
+Write-Host "Package includes:" -ForegroundColor White
+Write-Host "  1. AlgoSwitcher - Toggle between MEDIAPIPE and BLINKEYE" -ForegroundColor Gray
+Write-Host "  2. StabilizationSwitcher - Configure eye stabilization parameters" -ForegroundColor Gray
+if ($eyetrackerFile) {
+    Write-Host "  3. eyetracker-service executable (v$eyetrackerVersion)" -ForegroundColor Gray
+}
+Write-Host "" 
 Write-Host "You can now:" -ForegroundColor White
 Write-Host "  1. Distribute the zip file ($zipName)" -ForegroundColor Gray
-Write-Host "  2. Unzip and run the executable ($exeName)" -ForegroundColor Gray
+Write-Host "  2. Unzip and run the executables" -ForegroundColor Gray
 Write-Host "  3. Note: Run as Administrator for full functionality" -ForegroundColor Yellow
 Write-Host "" 
