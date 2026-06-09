@@ -13,7 +13,7 @@ class AlgoSwitcherGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Eye Tracker Algorithm Switcher")
-        self.root.geometry("750x750")
+        self.root.geometry("1100x750")
         
         # Settings file for saving product code
         self.settings_file = os.path.join(self.get_executable_dir(), "algo_switcher_settings.ini")
@@ -25,6 +25,14 @@ class AlgoSwitcherGUI:
         self.current_repetition = 0
         self.total_repetitions = 10
         self.test_results = []
+        
+        # Multivariate testing mode flag
+        self.mv_testing_mode = False
+        self.mv_tests = []
+        self.mv_current_test_idx = 0
+        self.mv_current_repetition = 0
+        self.mv_total_repetitions = 10
+        self.mv_test_results = []
         
         # Load product code from settings
         self.product_code = self.load_product_code()
@@ -61,6 +69,10 @@ class AlgoSwitcherGUI:
         # Right frame for A/B testing
         right_frame = ttk.LabelFrame(main_frame, text="A/B Testing", padding="15")
         right_frame.grid(row=0, column=1, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
+        
+        # Far right frame for Multivariate testing
+        mv_frame = ttk.LabelFrame(main_frame, text="Multivariate Testing", padding="15")
+        mv_frame.grid(row=0, column=2, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
         
         # === LEFT FRAME: Switcher Controls ===
         
@@ -213,6 +225,80 @@ class AlgoSwitcherGUI:
         self.comments_desc = ttk.Label(self.feedback_frame, text="You can provide extra feedback here.", font=('Arial', 8), foreground='gray')
         self.comments_desc.pack(pady=(0, 10))
 
+        # === MULTIVARIATE TESTING FRAME ===
+        
+        # Multivariate Testing description
+        mv_desc_label = ttk.Label(mv_frame, 
+                                 text="Randomly select algorithm\nAND stabilization setting", 
+                                 font=('Arial', 10), foreground='gray', justify=tk.CENTER)
+        mv_desc_label.grid(row=0, column=0, pady=10)
+        
+        # Multivariate Testing button
+        self.mv_button = ttk.Button(mv_frame, text="Start Multivariate Testing", 
+                                   command=self.toggle_mv_testing)
+        self.mv_button.grid(row=1, column=0, pady=10, ipadx=20, ipady=10)
+        
+        # Multivariate Testing status field (initially hidden)
+        self.mv_field_frame = ttk.Frame(mv_frame)
+        
+        # Test name label
+        self.mv_test_name_label = ttk.Label(self.mv_field_frame, text="", 
+                                           font=('Arial', 12, 'bold'), foreground='blue')
+        self.mv_test_name_label.pack(pady=10)
+        
+        # Instruction label
+        self.mv_instruction_label = ttk.Label(self.mv_field_frame, text="", 
+                                             font=('Arial', 10, 'italic'), foreground='black',
+                                             wraplength=280, justify=tk.CENTER)
+        self.mv_instruction_label.pack(pady=10)
+        
+        # Repetition counter label
+        self.mv_repetition_label = ttk.Label(self.mv_field_frame, text="", 
+                                            font=('Arial', 16), foreground='gray')
+        self.mv_repetition_label.pack(pady=2)
+        
+        # Progress bar
+        self.mv_progress_bar = ttk.Progressbar(self.mv_field_frame, mode='determinate', 
+                                              length=250, maximum=10)
+        self.mv_progress_bar.pack(pady=5)
+        
+        # Completed button frame
+        self.mv_completed_frame = ttk.Frame(self.mv_field_frame)
+        self.mv_completed_button = ttk.Button(self.mv_completed_frame, text="I've completed this instruction", 
+                                             command=self.on_mv_test_completed)
+        self.mv_completed_button.pack(pady=10)
+        
+        # Feedback frame
+        self.mv_feedback_frame = ttk.Frame(self.mv_field_frame)
+        
+        self.mv_feedback_question = ttk.Label(self.mv_feedback_frame,
+                                             text="Compared to previous:",
+                                             font=('Arial', 10))
+        self.mv_feedback_question.pack(pady=5)
+        
+        mv_feedback_buttons_frame = ttk.Frame(self.mv_feedback_frame)
+        mv_feedback_buttons_frame.pack(pady=5)
+        
+        self.mv_worse_button = ttk.Button(mv_feedback_buttons_frame, text="Worse",
+                                         command=lambda: self.record_mv_feedback_with_comment("Worse"))
+        self.mv_worse_button.pack(side=tk.LEFT, padx=5)
+        
+        self.mv_same_button = ttk.Button(mv_feedback_buttons_frame, text="No difference",
+                                        command=lambda: self.record_mv_feedback_with_comment("No difference"))
+        self.mv_same_button.pack(side=tk.LEFT, padx=5)
+        
+        self.mv_better_button = ttk.Button(mv_feedback_buttons_frame, text="Better",
+                                          command=lambda: self.record_mv_feedback_with_comment("Better"))
+        self.mv_better_button.pack(side=tk.LEFT, padx=5)
+        
+        # Additional comments label and input
+        self.mv_comments_label = ttk.Label(self.mv_feedback_frame, text="Additional comments (optional):", font=('Arial', 9))
+        self.mv_comments_label.pack(pady=(10, 2))
+        self.mv_comments_entry = ttk.Entry(self.mv_feedback_frame, width=40)
+        self.mv_comments_entry.pack(pady=(0, 2))
+        self.mv_comments_desc = ttk.Label(self.mv_feedback_frame, text="You can provide extra feedback here.", font=('Arial', 8), foreground='gray')
+        self.mv_comments_desc.pack(pady=(0, 10))
+        
         # Load and display current value
         self.update_status()
 
@@ -603,6 +689,11 @@ class AlgoSwitcherGUI:
             self.status_label.config(text="Current: Hidden (A/B Testing)", foreground="orange")
             return
         
+        if self.mv_testing_mode:
+            self.status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
+            self.stab_status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
+            return
+        
         current = self.get_current_algo()
         if current:
             self.status_label.config(text=f"Current: {current}", foreground="blue")
@@ -689,6 +780,230 @@ class AlgoSwitcherGUI:
             self.update_stab_status()
         else:
             messagebox.showerror("Error", "Failed to update INI file")
+    
+    def set_stabilization(self, algo_num):
+        """Set stabilization algorithm by number (1, 2, or 3 for no stabilization)"""
+        config = self.read_ini()
+        if config is None:
+            return False
+        
+        section = 'EyeStabilizationParams'
+        
+        # Create section if it doesn't exist
+        if not config.has_section(section):
+            config.add_section(section)
+        
+        # Get algorithm config
+        algo_config = self.stab_algo_configs[algo_num]
+        
+        # Set all parameters
+        for key, value in algo_config.items():
+            config.set(section, key, value)
+        
+        return self.write_ini(config)
+    
+    # === MULTIVARIATE TESTING METHODS ===
+    
+    def record_mv_feedback_with_comment(self, feedback):
+        """Record user feedback with additional comments for multivariate testing"""
+        comment = self.mv_comments_entry.get().strip()
+        self.mv_comments_entry.delete(0, tk.END)
+        self.record_mv_feedback(feedback, comment)
+    
+    def record_mv_feedback(self, feedback, comment=None):
+        """Record user feedback and move to next test in multivariate testing"""
+        test = self.mv_tests[self.mv_current_test_idx]
+        
+        # Get current settings from INI
+        current_algo = self.get_current_algo()
+        current_stab = self.get_current_stabilization()
+        
+        # Record result
+        result = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'test_name': test['name'],
+            'instruction': test['instruction'],
+            'repetition': self.mv_current_repetition + 1,
+            'algorithm': current_algo,
+            'stabilization': current_stab,
+            'feedback': feedback,
+            'comments': comment if comment is not None else ""
+        }
+        self.mv_test_results.append(result)
+        
+        # Move to next repetition
+        self.mv_current_repetition += 1
+        
+        if self.mv_current_repetition >= self.mv_total_repetitions:
+            # Move to next test
+            self.mv_current_test_idx += 1
+            self.mv_current_repetition = 0
+        
+        # Hide feedback frame
+        self.mv_feedback_frame.pack_forget()
+        
+        # Show next test
+        self.show_next_mv_test()
+        
+        # Load and display current value
+        self.update_status()
+    
+    def toggle_mv_testing(self):
+        """Toggle Multivariate testing mode"""
+        if not self.mv_testing_mode:
+            # Entering multivariate testing mode
+            if not self.is_admin:
+                response = messagebox.askyesno(
+                    "Administrator Required", 
+                    "Administrator privileges are required to modify files in Program Files.\n\n"
+                    "Would you like to restart the program as Administrator?",
+                    icon='warning'
+                )
+                if response:
+                    self.restart_as_admin()
+                return
+            
+            # Load tests from Excel
+            if not self.load_mv_tests_from_excel():
+                return
+            
+            # Enter multivariate testing mode
+            self.mv_testing_mode = True
+            
+            # Update UI
+            self.mv_button.config(text="Exit Multivariate Testing")
+            self.status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
+            self.stab_status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
+            
+            # Start test sequence
+            self.start_mv_test_sequence()
+        else:
+            # Exiting multivariate testing mode
+            self.mv_testing_mode = False
+            
+            # Update UI
+            self.mv_button.config(text="Start Multivariate Testing")
+            self.mv_field_frame.grid_remove()
+            self.update_status()
+            
+            messagebox.showinfo("Multivariate Testing", "Multivariate Testing mode deactivated.")
+    
+    def load_mv_tests_from_excel(self):
+        """Load tests from Excel for multivariate testing (same as A/B testing)"""
+        exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        excel_path = os.path.join(exe_dir, "abtesting_instructions", "instructions.xlsx")
+        self.mv_tests = []
+        if os.path.exists(excel_path):
+            try:
+                df = pd.read_excel(excel_path)
+                if 'Test Name' in df.columns and 'Instruction' in df.columns:
+                    for _, row in df.iterrows():
+                        self.mv_tests.append({
+                            'name': str(row['Test Name']),
+                            'instruction': str(row['Instruction'])
+                        })
+                if len(self.mv_tests) == 0:
+                    messagebox.showerror("Error", "No tests found in instructions.xlsx")
+                    return False
+                return True
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to read instructions.xlsx:\n{str(e)}\nUsing default instructions.")
+        else:
+            messagebox.showerror("Error", f"Instructions file not found:\n{excel_path}\nUsing default instructions.")
+        
+        # Fallback: hardcoded instructions
+        self.mv_tests = [
+            {'name': 'Test 1', 'instruction': 'Follow the dot with your eyes.'},
+            {'name': 'Test 2', 'instruction': 'Look left and right quickly.'},
+            {'name': 'Test 3', 'instruction': 'Blink three times.'},
+            {'name': 'Test 4', 'instruction': 'Focus on the center for 5 seconds.'}
+        ]
+        return True
+    
+    def start_mv_test_sequence(self):
+        """Start the multivariate testing sequence"""
+        self.mv_current_test_idx = 0
+        self.mv_current_repetition = 0
+        self.mv_test_results = []
+        
+        # Show test UI
+        self.mv_field_frame.grid(row=2, column=0, pady=10)
+        self.mv_feedback_frame.pack_forget()
+        
+        # Show first test
+        self.show_next_mv_test()
+    
+    def show_next_mv_test(self):
+        """Display the next test instruction for multivariate testing"""
+        if self.mv_current_test_idx >= len(self.mv_tests):
+            # All tests completed
+            self.finish_mv_testing()
+            return
+        
+        # Randomly select from 4 specific combinations
+        mv_options = [
+            ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
+            ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
+            ("BLINKEYE", 3),   # BLINKEYE, No stabilization
+            ("MEDIAPIPE", 2),  # MEDIAPIPE, Algorithm 2
+        ]
+        selected_algo, selected_stab = random.choice(mv_options)
+        
+        if not self.set_algo(selected_algo):
+            messagebox.showerror("Error", "Failed to set algorithm")
+            return
+        
+        if not self.set_stabilization(selected_stab):
+            messagebox.showerror("Error", "Failed to set stabilization")
+            return
+        
+        test = self.mv_tests[self.mv_current_test_idx]
+        
+        # Update progress
+        self.mv_progress_bar['value'] = self.mv_current_repetition
+        
+        # Update test display
+        self.mv_test_name_label.config(text=test['name'])
+        self.mv_repetition_label.config(text=f"Repetition {self.mv_current_repetition + 1} of {self.mv_total_repetitions}")
+        self.mv_instruction_label.config(text=test['instruction'])
+        
+        # First repetition: show completed button; subsequent repetitions: show feedback directly
+        if self.mv_current_repetition == 0:
+            self.mv_feedback_frame.pack_forget()
+            self.mv_completed_frame.pack(pady=10)
+        else:
+            self.mv_completed_frame.pack_forget()
+            self.mv_feedback_frame.pack(pady=10)
+    
+    def on_mv_test_completed(self):
+        """Called when user confirms they completed the test (first repetition only) in multivariate testing"""
+        self.mv_completed_frame.pack_forget()
+        self.record_mv_feedback("N/A (First)")
+    
+    def finish_mv_testing(self):
+        """Complete multivariate testing and save results"""
+        # Save results to CSV
+        log_filename = f"multivariate_testing_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        log_path = os.path.join(self.get_executable_dir(), log_filename)
+        
+        try:
+            with open(log_path, 'w', newline='', encoding='utf-8') as f:
+                if self.mv_test_results:
+                    fieldnames = self.mv_test_results[0].keys()
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(self.mv_test_results)
+            
+            messagebox.showinfo("Multivariate Testing Complete", 
+                              f"All tests completed!\n\nResults saved to:\n{log_filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save results:\n{str(e)}")
+        
+        # Exit multivariate testing mode
+        self.mv_testing_mode = False
+        self.mv_button.config(text="Start Multivariate Testing")
+        self.mv_field_frame.grid_remove()
+        self.update_status()
     
     def switch_algorithm(self):
         """Toggle between MEDIAPIPE and BLINKEYE"""
