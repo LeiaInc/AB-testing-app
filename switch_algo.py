@@ -35,6 +35,21 @@ class AlgoSwitcherGUI:
         # Check if running as admin
         self.is_admin = self.check_admin()
         
+        # Eye Stabilization algorithm configurations
+        self.stab_algo_configs = {
+            1: {
+                'enabled': 'true',
+                'algoID': '1'
+            },
+            2: {
+                'enabled': 'true',
+                'algoID': '2'
+            },
+            3: {
+                'enabled': 'false'
+            }
+        }
+        
         # Create main frame
         main_frame = ttk.Frame(root, padding="20")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -95,6 +110,33 @@ class AlgoSwitcherGUI:
                               font=("Arial", 8), foreground="gray")
         path_label.grid(row=6, column=0, columnspan=2, pady=5)
         self.path_label = path_label
+        
+        # === EYE STABILIZATION FRAME ===
+        stab_frame = ttk.LabelFrame(left_frame, text="Eye Stabilization", padding="10")
+        stab_frame.grid(row=7, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        
+        self.selected_stab_algo = tk.IntVar(value=1)
+        
+        stab_algo1_radio = ttk.Radiobutton(stab_frame, text="Algorithm 1", 
+                                           variable=self.selected_stab_algo, value=1)
+        stab_algo1_radio.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        
+        stab_algo2_radio = ttk.Radiobutton(stab_frame, text="Algorithm 2", 
+                                           variable=self.selected_stab_algo, value=2)
+        stab_algo2_radio.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        
+        stab_algo3_radio = ttk.Radiobutton(stab_frame, text="No stabilization", 
+                                           variable=self.selected_stab_algo, value=3)
+        stab_algo3_radio.grid(row=0, column=2, padx=5, pady=5, sticky=tk.W)
+        
+        stab_apply_button = ttk.Button(stab_frame, text="Apply", 
+                                       command=self.apply_stabilization)
+        stab_apply_button.grid(row=1, column=0, columnspan=3, pady=10)
+        
+        # Stabilization status label
+        self.stab_status_label = ttk.Label(stab_frame, text="Current: Unknown", 
+                                           font=("Arial", 9), foreground="gray")
+        self.stab_status_label.grid(row=2, column=0, columnspan=3, pady=5)
         
         # === RIGHT FRAME: A/B Testing ===
         
@@ -566,6 +608,87 @@ class AlgoSwitcherGUI:
             self.status_label.config(text=f"Current: {current}", foreground="blue")
         else:
             self.status_label.config(text="Current: Not found in INI", foreground="red")
+        
+        # Update stabilization status
+        self.update_stab_status()
+    
+    def update_stab_status(self):
+        """Update the stabilization status label"""
+        current_stab = self.get_current_stabilization()
+        if current_stab:
+            self.stab_status_label.config(text=f"Current: {current_stab}", foreground="blue")
+            # Update radio button selection based on current settings
+            if current_stab == "Algorithm 1":
+                self.selected_stab_algo.set(1)
+            elif current_stab == "Algorithm 2":
+                self.selected_stab_algo.set(2)
+            elif current_stab == "No stabilization":
+                self.selected_stab_algo.set(3)
+        else:
+            self.stab_status_label.config(text="Current: Unknown", foreground="gray")
+    
+    def get_current_stabilization(self):
+        """Get current eye stabilization algorithm from INI"""
+        config = self.read_ini()
+        if config is None:
+            return None
+        
+        section = 'EyeStabilizationParams'
+        if not config.has_section(section):
+            return None
+        
+        # Read current values
+        enabled = config.get(section, 'enabled', fallback='true').lower()
+        algo_id = config.get(section, 'algoID', fallback=None)
+        
+        # Determine which algorithm is active
+        if enabled == 'false':
+            return "No stabilization"
+        elif algo_id == '1':
+            return "Algorithm 1"
+        elif algo_id == '2':
+            return "Algorithm 2"
+        else:
+            return f"Custom (algoID={algo_id})"
+    
+    def apply_stabilization(self):
+        """Apply selected stabilization algorithm to INI file"""
+        if not self.is_admin:
+            response = messagebox.askyesno(
+                "Administrator Required", 
+                "Administrator privileges are required to modify files in Program Files.\n\n"
+                "Would you like to restart the program as Administrator?",
+                icon='warning'
+            )
+            if response:
+                self.restart_as_admin()
+            return
+        
+        config = self.read_ini()
+        if config is None:
+            return
+        
+        section = 'EyeStabilizationParams'
+        
+        # Create section if it doesn't exist
+        if not config.has_section(section):
+            config.add_section(section)
+        
+        # Get selected algorithm config
+        algo_num = self.selected_stab_algo.get()
+        algo_config = self.stab_algo_configs[algo_num]
+        
+        # Set all parameters
+        for key, value in algo_config.items():
+            config.set(section, key, value)
+        
+        # Write back to file
+        if self.write_ini(config):
+            algo_names = {1: "Algorithm 1", 2: "Algorithm 2", 3: "No stabilization"}
+            messagebox.showinfo("Success", f"Eye Stabilization set to: {algo_names[algo_num]}")
+            self.update_stab_status()
+        else:
+            messagebox.showerror("Error", "Failed to update INI file")
     
     def switch_algorithm(self):
         """Toggle between MEDIAPIPE and BLINKEYE"""
