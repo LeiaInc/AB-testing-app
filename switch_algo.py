@@ -889,9 +889,9 @@ class AlgoSwitcherGUI:
             messagebox.showinfo("Multivariate Testing", "Multivariate Testing mode deactivated.")
     
     def load_mv_tests_from_excel(self):
-        """Load tests from Excel for multivariate testing (same as A/B testing)"""
+        """Load tests from Excel for multivariate testing"""
         exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-        excel_path = os.path.join(exe_dir, "abtesting_instructions", "instructions.xlsx")
+        excel_path = os.path.join(exe_dir, "abtesting_instructions", "instructions_mvt.xlsx")
         self.mv_tests = []
         if os.path.exists(excel_path):
             try:
@@ -903,11 +903,11 @@ class AlgoSwitcherGUI:
                             'instruction': str(row['Instruction'])
                         })
                 if len(self.mv_tests) == 0:
-                    messagebox.showerror("Error", "No tests found in instructions.xlsx")
+                    messagebox.showerror("Error", "No tests found in instructions_mvt.xlsx")
                     return False
                 return True
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to read instructions.xlsx:\n{str(e)}\nUsing default instructions.")
+                messagebox.showerror("Error", f"Failed to read instructions_mvt.xlsx:\n{str(e)}\nUsing default instructions.")
         else:
             messagebox.showerror("Error", f"Instructions file not found:\n{excel_path}\nUsing default instructions.")
         
