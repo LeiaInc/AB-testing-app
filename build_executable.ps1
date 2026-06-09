@@ -260,10 +260,11 @@ Copy-Item $exePath1 $packageDir\
 Copy-Item $exePath2 $packageDir\
 Write-Host "  OK Added both executables to package" -ForegroundColor Green
 
-# Copy abtesting instructions
-if (Test-Path "$ScriptDir\abtesting_instructions\instructions.xlsx") {
+# Copy abtesting instructions (all xlsx files)
+if (Test-Path "$ScriptDir\abtesting_instructions") {
     New-Item -ItemType Directory -Path "$packageDir\abtesting_instructions" | Out-Null
-    Copy-Item "$ScriptDir\abtesting_instructions\instructions.xlsx" "$packageDir\abtesting_instructions\"
+    Copy-Item "$ScriptDir\abtesting_instructions\*.xlsx" "$packageDir\abtesting_instructions\"
+    Write-Host "  OK Added abtesting instructions to package" -ForegroundColor Green
 }
 
 # Copy README.md
