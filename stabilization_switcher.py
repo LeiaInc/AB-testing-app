@@ -40,6 +40,14 @@ class StabilizationSwitcherGUI:
                 'useAverage': 'false',
                 'useRotation': 'true',
                 'stabilizeLandmarks': 'true'
+            },
+            3: {
+                'enabled': 'false',
+                'factor': '0.95',
+                'maxDistError_percentage': '5',
+                'useAverage': 'false',
+                'useRotation': 'true',
+                'stabilizeLandmarks': 'true'
             }
         }
         
@@ -94,9 +102,14 @@ class StabilizationSwitcherGUI:
                                      command=self.on_algo_selected)
         algo2_radio.grid(row=0, column=1, padx=10, pady=5, sticky=tk.W)
         
+        algo3_radio = ttk.Radiobutton(algo_frame, text="No eye stabilization", 
+                                     variable=self.selected_algo, value=3,
+                                     command=self.on_algo_selected)
+        algo3_radio.grid(row=0, column=2, padx=10, pady=5, sticky=tk.W)
+        
         load_current_button = ttk.Button(algo_frame, text="Load Current Settings", 
                                         command=self.load_current_settings)
-        load_current_button.grid(row=0, column=2, padx=10, pady=5)
+        load_current_button.grid(row=0, column=3, padx=10, pady=5)
         
         # Parameters frame
         params_frame = ttk.LabelFrame(main_frame, text="Parameters", padding="15")
