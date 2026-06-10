@@ -940,11 +940,10 @@ class AlgoSwitcherGUI:
             self.finish_mv_testing()
             return
         
-        # Randomly select from 4 specific combinations
+        # Randomly select from 3 specific combinations
         mv_options = [
             ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
             ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
-            ("BLINKEYE", 3),   # BLINKEYE, No stabilization
             ("MEDIAPIPE", 2),  # MEDIAPIPE, Algorithm 2
         ]
         selected_algo, selected_stab = random.choice(mv_options)
