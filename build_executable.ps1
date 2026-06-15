@@ -170,6 +170,51 @@ exe = EXE(
 Set-Content -Path "StabilizationSwitcher.spec" -Value $specContent2
 Write-Host "  OK StabilizationSwitcher.spec created" -ForegroundColor Green
 
+# Spec file for MultivariateSwitcher
+$specContent3 = @"
+# -*- mode: python ; coding: utf-8 -*-
+
+a = Analysis(
+    ['multivariate_testing.py'],
+    pathex=[],
+    binaries=[],
+    datas=[('abtesting_instructions', 'abtesting_instructions')],
+    hiddenimports=['pandas', 'openpyxl'],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='MultivariateSwitcher',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=None,
+)
+"@
+
+Set-Content -Path "MultivariateSwitcher.spec" -Value $specContent3
+Write-Host "  OK MultivariateSwitcher.spec created" -ForegroundColor Green
+
 # Build executables
 Write-Host ""
 Write-Host "[5/7] Building executables with PyInstaller..." -ForegroundColor Yellow
@@ -197,6 +242,17 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 Write-Host "  OK StabilizationSwitcher built successfully" -ForegroundColor Green
+
+# Build MultivariateSwitcher
+Write-Host "  Building MultivariateSwitcher..." -ForegroundColor Cyan
+& $pythonCmd -m PyInstaller MultivariateSwitcher.spec --clean --noconfirm
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ""
+    Write-Host "  X MultivariateSwitcher build failed!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "  OK MultivariateSwitcher built successfully" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "[6/7] Preparing distribution package..." -ForegroundColor Yellow
@@ -230,6 +286,17 @@ if (Test-Path "dist\StabilizationSwitcher.exe") {
     exit 1
 }
 
+$exeName3 = "MultivariateSwitcher_$gitHash.exe"
+$exePath3 = "dist\$exeName3"
+if (Test-Path "dist\MultivariateSwitcher.exe") {
+    Rename-Item "dist\MultivariateSwitcher.exe" $exeName3 -Force
+    $fileSize3 = (Get-Item $exePath3).Length / 1MB
+    Write-Host "  OK MultivariateSwitcher executable: $exeName3 ($([math]::Round($fileSize3, 2)) MB)" -ForegroundColor Green
+} else {
+    Write-Host "  X MultivariateSwitcher executable not found!" -ForegroundColor Red
+    exit 1
+}
+
 # Find and extract eyetracker-service version
 Write-Host ""
 Write-Host "[7/7] Creating distribution package..." -ForegroundColor Yellow
@@ -255,10 +322,11 @@ $packageDir = "$ScriptDir\package_temp"
 if (Test-Path $packageDir) { Remove-Item $packageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $packageDir | Out-Null
 
-# Copy both executables
+# Copy all executables
 Copy-Item $exePath1 $packageDir\
 Copy-Item $exePath2 $packageDir\
-Write-Host "  OK Added both executables to package" -ForegroundColor Green
+Copy-Item $exePath3 $packageDir\
+Write-Host "  OK Added all executables to package" -ForegroundColor Green
 
 # Copy abtesting instructions (all xlsx files)
 if (Test-Path "$ScriptDir\abtesting_instructions") {
@@ -292,10 +360,11 @@ Write-Host "Your package is ready at:" -ForegroundColor White
 Write-Host "  $zipPath" -ForegroundColor Cyan
 Write-Host "" 
 Write-Host "Package includes:" -ForegroundColor White
-Write-Host "  1. AlgoSwitcher - Toggle between MEDIAPIPE and BLINKEYE" -ForegroundColor Gray
+Write-Host "  1. AlgoSwitcher - Toggle between MEDIAPIPE and BLINKEYE + A/B Testing" -ForegroundColor Gray
 Write-Host "  2. StabilizationSwitcher - Configure eye stabilization parameters" -ForegroundColor Gray
+Write-Host "  3. MultivariateSwitcher - Multivariate testing (algorithm + stabilization)" -ForegroundColor Gray
 if ($eyetrackerFile) {
-    Write-Host "  3. eyetracker-service executable (v$eyetrackerVersion)" -ForegroundColor Gray
+    Write-Host "  4. eyetracker-service executable (v$eyetrackerVersion)" -ForegroundColor Gray
 }
 Write-Host "" 
 Write-Host "You can now:" -ForegroundColor White
