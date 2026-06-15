@@ -9,11 +9,39 @@ import pandas as pd
 from datetime import datetime
 import csv
 
+class ToolTip:
+    """Create a tooltip for a given widget"""
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind('<Enter>', self.show_tooltip)
+        self.widget.bind('<Leave>', self.hide_tooltip)
+    
+    def show_tooltip(self, event=None):
+        x, y, _, _ = self.widget.bbox('insert') if hasattr(self.widget, 'bbox') else (0, 0, 0, 0)
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+        
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_geometry(f'+{x}+{y}')
+        
+        label = tk.Label(self.tooltip, text=self.text, justify=tk.LEFT,
+                        background='#ffffe0', relief='solid', borderwidth=1,
+                        font=('Arial', 9), padx=5, pady=5)
+        label.pack()
+    
+    def hide_tooltip(self, event=None):
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
 class MultivariateSwitcherGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Eye Tracker Multivariate Testing")
-        self.root.geometry("750x750")
+        self.root.geometry("750x900")
         
         # Settings file for saving product code
         self.settings_file = os.path.join(self.get_executable_dir(), "multivariate_switcher_settings.ini")
@@ -25,6 +53,7 @@ class MultivariateSwitcherGUI:
         self.mv_current_repetition = 0
         self.mv_total_repetitions = 10
         self.mv_test_results = []
+        self.active_test_number = 1  # Track which test button was clicked (1, 2, or 3)
         
         # Load product code from settings
         self.product_code = self.load_product_code()
@@ -146,10 +175,44 @@ class MultivariateSwitcherGUI:
                                  font=('Arial', 10), foreground='gray', justify=tk.CENTER)
         mv_desc_label.grid(row=0, column=0, pady=10)
         
-        # Multivariate Testing button
-        self.mv_button = ttk.Button(mv_frame, text="Start Multivariate Testing", 
-                                   command=self.toggle_mv_testing)
-        self.mv_button.grid(row=1, column=0, pady=10, ipadx=20, ipady=10)
+        # Leia Player instruction with bold
+        lp_instruction_frame = ttk.Frame(mv_frame)
+        lp_instruction_frame.grid(row=1, column=0, pady=5)
+        
+        ttk.Label(lp_instruction_frame, text="Use ", font=('Arial', 10)).pack(side=tk.LEFT)
+        ttk.Label(lp_instruction_frame, text="Leia Player", font=('Arial', 10, 'bold')).pack(side=tk.LEFT)
+        ttk.Label(lp_instruction_frame, text=" app for testing", font=('Arial', 10)).pack(side=tk.LEFT)
+        
+        # Multivariate Testing button 1
+        self.mv_button = ttk.Button(mv_frame, text="Start multivariate testing 1", 
+                                   command=lambda: self.toggle_mv_testing(1))
+        self.mv_button.grid(row=2, column=0, pady=10, ipadx=20, ipady=10)
+        
+        # Leia Player instruction for test 2
+        lp_instruction_frame2 = ttk.Frame(mv_frame)
+        lp_instruction_frame2.grid(row=3, column=0, pady=(15, 5))
+        
+        ttk.Label(lp_instruction_frame2, text="Use ", font=('Arial', 10)).pack(side=tk.LEFT)
+        ttk.Label(lp_instruction_frame2, text="Leia Player", font=('Arial', 10, 'bold')).pack(side=tk.LEFT)
+        ttk.Label(lp_instruction_frame2, text=" app for testing", font=('Arial', 10)).pack(side=tk.LEFT)
+        
+        # Multivariate Testing button 2
+        self.mv_button2 = ttk.Button(mv_frame, text="Start multivariate testing 2", 
+                                    command=lambda: self.toggle_mv_testing(2))
+        self.mv_button2.grid(row=4, column=0, pady=10, ipadx=20, ipady=10)
+        
+        # Leia Viewer instruction for test 3
+        lv_instruction_frame = ttk.Frame(mv_frame)
+        lv_instruction_frame.grid(row=5, column=0, pady=(15, 5))
+        
+        ttk.Label(lv_instruction_frame, text="Use ", font=('Arial', 10)).pack(side=tk.LEFT)
+        ttk.Label(lv_instruction_frame, text="Leia Viewer", font=('Arial', 10, 'bold')).pack(side=tk.LEFT)
+        ttk.Label(lv_instruction_frame, text=" for testing", font=('Arial', 10)).pack(side=tk.LEFT)
+        
+        # Multivariate Testing button 3
+        self.mv_button3 = ttk.Button(mv_frame, text="Start multivariate testing 3", 
+                                    command=lambda: self.toggle_mv_testing(3))
+        self.mv_button3.grid(row=6, column=0, pady=10, ipadx=20, ipady=10)
         
         # Multivariate Testing status field (initially hidden)
         self.mv_field_frame = ttk.Frame(mv_frame)
@@ -604,7 +667,7 @@ class MultivariateSwitcherGUI:
         # Load and display current value
         self.update_status()
     
-    def toggle_mv_testing(self):
+    def toggle_mv_testing(self, test_number=1):
         """Toggle Multivariate testing mode"""
         if not self.mv_testing_mode:
             # Entering multivariate testing mode
@@ -620,14 +683,21 @@ class MultivariateSwitcherGUI:
                 return
             
             # Load tests from Excel
-            if not self.load_mv_tests_from_excel():
+            if not self.load_mv_tests_from_excel(test_number):
                 return
             
             # Enter multivariate testing mode
             self.mv_testing_mode = True
+            self.active_test_number = test_number
             
-            # Update UI
-            self.mv_button.config(text="Exit Multivariate Testing")
+            # Update UI - disable other buttons and update active button
+            buttons = {1: self.mv_button, 2: self.mv_button2, 3: self.mv_button3}
+            for num, btn in buttons.items():
+                if num == test_number:
+                    btn.config(text=f"Exit multivariate testing {num}")
+                else:
+                    btn.config(state='disabled')
+            
             self.status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
             self.stab_status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
             
@@ -637,17 +707,28 @@ class MultivariateSwitcherGUI:
             # Exiting multivariate testing mode
             self.mv_testing_mode = False
             
-            # Update UI
-            self.mv_button.config(text="Start Multivariate Testing")
+            # Update UI - re-enable all buttons
+            self.mv_button.config(text="Start multivariate testing 1", state='normal')
+            self.mv_button2.config(text="Start multivariate testing 2", state='normal')
+            self.mv_button3.config(text="Start multivariate testing 3", state='normal')
             self.mv_field_frame.grid_remove()
             self.update_status()
             
             messagebox.showinfo("Multivariate Testing", "Multivariate Testing mode deactivated.")
     
-    def load_mv_tests_from_excel(self):
+    def load_mv_tests_from_excel(self, test_number=1):
         """Load tests from Excel for multivariate testing"""
         exe_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-        excel_path = os.path.join(exe_dir, "abtesting_instructions", "instructions_mvt.xlsx")
+        
+        # Use different instruction files for each test
+        instruction_files = {
+            1: "instructions_mvt_1.xlsx",
+            2: "instructions_mvt_2.xlsx",
+            3: "instructions_mvt_3.xlsx"
+        }
+        filename = instruction_files.get(test_number, "instructions_mvt_1.xlsx")
+        excel_path = os.path.join(exe_dir, "abtesting_instructions", filename)
+        
         self.mv_tests = []
         if os.path.exists(excel_path):
             try:
@@ -659,11 +740,11 @@ class MultivariateSwitcherGUI:
                             'instruction': str(row['Instruction'])
                         })
                 if len(self.mv_tests) == 0:
-                    messagebox.showerror("Error", "No tests found in instructions_mvt.xlsx")
+                    messagebox.showerror("Error", f"No tests found in {filename}")
                     return False
                 return True
             except Exception as e:
-                messagebox.showerror("Error", f"Failed to read instructions_mvt.xlsx:\n{str(e)}\nUsing default instructions.")
+                messagebox.showerror("Error", f"Failed to read {filename}:\n{str(e)}\nUsing default instructions.")
         else:
             messagebox.showerror("Error", f"Instructions file not found:\n{excel_path}\nUsing default instructions.")
         
@@ -683,7 +764,7 @@ class MultivariateSwitcherGUI:
         self.mv_test_results = []
         
         # Show test UI
-        self.mv_field_frame.grid(row=2, column=0, pady=10)
+        self.mv_field_frame.grid(row=7, column=0, pady=10)
         self.mv_feedback_frame.pack_forget()
         
         # Show first test
@@ -696,12 +777,21 @@ class MultivariateSwitcherGUI:
             self.finish_mv_testing()
             return
         
-        # Randomly select from 3 specific combinations
-        mv_options = [
-            ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
-            ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
-            ("MEDIAPIPE", 2),  # MEDIAPIPE, Algorithm 2
-        ]
+        # Select options based on which test is running
+        if self.active_test_number == 1:
+            # Test 1: BLINKEYE/MEDIAPIPE with Algorithm 1/2
+            mv_options = [
+                ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
+                ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
+                ("MEDIAPIPE", 2),  # MEDIAPIPE, Algorithm 2
+            ]
+        else:
+            # Test 2 and 3: BLINKEYE only with Algorithm 1/2/No filtering
+            mv_options = [
+                ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
+                ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
+                ("BLINKEYE", 3),   # BLINKEYE, No filtering
+            ]
         selected_algo, selected_stab = random.choice(mv_options)
         
         if not self.set_algo(selected_algo):
@@ -737,8 +827,8 @@ class MultivariateSwitcherGUI:
     
     def finish_mv_testing(self):
         """Complete multivariate testing and save results"""
-        # Save results to CSV
-        log_filename = f"multivariate_testing_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        # Save results to CSV with test number in filename
+        log_filename = f"multivariate_testing_{self.active_test_number}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         log_path = os.path.join(self.get_executable_dir(), log_filename)
         
         try:
@@ -756,7 +846,9 @@ class MultivariateSwitcherGUI:
         
         # Exit multivariate testing mode
         self.mv_testing_mode = False
-        self.mv_button.config(text="Start Multivariate Testing")
+        self.mv_button.config(text="Start multivariate testing 1", state='normal')
+        self.mv_button2.config(text="Start multivariate testing 2", state='normal')
+        self.mv_button3.config(text="Start multivariate testing 3", state='normal')
         self.mv_field_frame.grid_remove()
         self.update_status()
 
