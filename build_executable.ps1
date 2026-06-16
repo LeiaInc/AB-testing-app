@@ -305,8 +305,10 @@ $eyetrackerFile = Get-ChildItem "$ScriptDir\eyetracker_to_test" -Filter "eyetrac
 $eyetrackerVersion = $null
 if ($eyetrackerFile) {
     # Extract version from filename: eyetracker-service-<version>-win64-Release.exe
-    if ($eyetrackerFile.Name -match "eyetracker-service-([\d.]+)-win64-Release\.exe") {
+    if ($eyetrackerFile.Name -match "eyetracker-service-(.+)-win64-Release\.exe") {
         $eyetrackerVersion = $matches[1]
+        # Replace + with . for cleaner filename
+        $eyetrackerVersion = $eyetrackerVersion -replace '\+', '.'
         Write-Host "  Found eyetracker-service version: $eyetrackerVersion" -ForegroundColor Cyan
     }
 }
@@ -339,6 +341,12 @@ if (Test-Path "$ScriptDir\abtesting_instructions") {
 if (Test-Path "$ScriptDir\README.md") {
     Copy-Item "$ScriptDir\README.md" "$packageDir\"
     Write-Host "  OK Added README.md to package" -ForegroundColor Green
+}
+
+# Copy README_MULTIVARIATE.md
+if (Test-Path "$ScriptDir\README_MULTIVARIATE.md") {
+    Copy-Item "$ScriptDir\README_MULTIVARIATE.md" "$packageDir\"
+    Write-Host "  OK Added README_MULTIVARIATE.md to package" -ForegroundColor Green
 }
 
 # Copy eyetracker-service executable
