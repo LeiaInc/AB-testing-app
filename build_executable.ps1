@@ -170,7 +170,7 @@ exe = EXE(
 Set-Content -Path "StabilizationSwitcher.spec" -Value $specContent2
 Write-Host "  OK StabilizationSwitcher.spec created" -ForegroundColor Green
 
-# Spec file for MultivariateSwitcher
+# Spec file for MultivariateTesting
 $specContent3 = @"
 # -*- mode: python ; coding: utf-8 -*-
 
@@ -195,7 +195,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='MultivariateSwitcher',
+    name='MultivariateTesting',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -212,8 +212,8 @@ exe = EXE(
 )
 "@
 
-Set-Content -Path "MultivariateSwitcher.spec" -Value $specContent3
-Write-Host "  OK MultivariateSwitcher.spec created" -ForegroundColor Green
+Set-Content -Path "MultivariateTesting.spec" -Value $specContent3
+Write-Host "  OK MultivariateTesting.spec created" -ForegroundColor Green
 
 # Build executables
 Write-Host ""
@@ -243,16 +243,16 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-Host "  OK StabilizationSwitcher built successfully" -ForegroundColor Green
 
-# Build MultivariateSwitcher
-Write-Host "  Building MultivariateSwitcher..." -ForegroundColor Cyan
-& $pythonCmd -m PyInstaller MultivariateSwitcher.spec --clean --noconfirm
+# Build MultivariateTesting
+Write-Host "  Building MultivariateTesting..." -ForegroundColor Cyan
+& $pythonCmd -m PyInstaller MultivariateTesting.spec --clean --noconfirm
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "  X MultivariateSwitcher build failed!" -ForegroundColor Red
+    Write-Host "  X MultivariateTesting build failed!" -ForegroundColor Red
     exit 1
 }
-Write-Host "  OK MultivariateSwitcher built successfully" -ForegroundColor Green
+Write-Host "  OK MultivariateTesting built successfully" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "[6/7] Preparing distribution package..." -ForegroundColor Yellow
@@ -286,14 +286,14 @@ if (Test-Path "dist\StabilizationSwitcher.exe") {
     exit 1
 }
 
-$exeName3 = "MultivariateSwitcher_$gitHash.exe"
+$exeName3 = "MultivariateTesting_$gitHash.exe"
 $exePath3 = "dist\$exeName3"
-if (Test-Path "dist\MultivariateSwitcher.exe") {
-    Rename-Item "dist\MultivariateSwitcher.exe" $exeName3 -Force
+if (Test-Path "dist\MultivariateTesting.exe") {
+    Rename-Item "dist\MultivariateTesting.exe" $exeName3 -Force
     $fileSize3 = (Get-Item $exePath3).Length / 1MB
-    Write-Host "  OK MultivariateSwitcher executable: $exeName3 ($([math]::Round($fileSize3, 2)) MB)" -ForegroundColor Green
+    Write-Host "  OK MultivariateTesting executable: $exeName3 ($([math]::Round($fileSize3, 2)) MB)" -ForegroundColor Green
 } else {
-    Write-Host "  X MultivariateSwitcher executable not found!" -ForegroundColor Red
+    Write-Host "  X MultivariateTesting executable not found!" -ForegroundColor Red
     exit 1
 }
 
