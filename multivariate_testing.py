@@ -8,6 +8,7 @@ import random
 import pandas as pd
 from datetime import datetime
 import csv
+import shutil
 
 class ToolTip:
     """Create a tooltip for a given widget"""
@@ -54,6 +55,9 @@ class MultivariateSwitcherGUI:
         self.mv_total_repetitions = 10
         self.mv_test_results = []
         self.active_test_number = 1  # Track which test button was clicked (1, 2, or 3)
+        
+        # Recording state
+        self.recording = False
         
         # Load product code from settings
         self.product_code = self.load_product_code()
@@ -140,9 +144,22 @@ class MultivariateSwitcherGUI:
         path_label.grid(row=6, column=0, columnspan=2, pady=5)
         self.path_label = path_label
         
+        # === RECORDING FRAME ===
+        recording_frame = ttk.LabelFrame(left_frame, text="Recording", padding="10")
+        recording_frame.grid(row=7, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        
+        self.recording_button = ttk.Button(recording_frame, text="Start recording", 
+                                           command=self.toggle_recording)
+        self.recording_button.grid(row=0, column=0, pady=5, ipadx=10, ipady=5)
+        
+        # Recording status label
+        self.recording_status_label = ttk.Label(recording_frame, text="Recording: Off", 
+                                                font=("Arial", 9), foreground="gray")
+        self.recording_status_label.grid(row=1, column=0, pady=5)
+        
         # === EYE STABILIZATION FRAME ===
         stab_frame = ttk.LabelFrame(left_frame, text="Eye Stabilization", padding="10")
-        stab_frame.grid(row=7, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        stab_frame.grid(row=8, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
         
         self.selected_stab_algo = tk.IntVar(value=1)
         
@@ -200,6 +217,12 @@ class MultivariateSwitcherGUI:
         self.mv_button2 = ttk.Button(mv_frame, text="Start multivariate testing 2", 
                                     command=lambda: self.toggle_mv_testing(2))
         self.mv_button2.grid(row=4, column=0, pady=10, ipadx=20, ipady=10)
+        
+        # Allow recording checkbox
+        self.mv_allow_recording = tk.BooleanVar(value=False)
+        self.mv_recording_checkbox = ttk.Checkbutton(mv_frame, text="Allow recording during testing",
+                                                     variable=self.mv_allow_recording)
+        self.mv_recording_checkbox.grid(row=5, column=0, pady=10)
         
         # Multivariate Testing status field (initially hidden)
         self.mv_field_frame = ttk.Frame(mv_frame)
@@ -264,6 +287,125 @@ class MultivariateSwitcherGUI:
         
         # Load and display current value
         self.update_status()
+        
+        # Set up close handler to clean up recording
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+    
+    def on_close(self):
+        """Handle application close - cleanup recording state"""
+        self.remove_recording_from_ini()
+        self.root.destroy()
+    
+    def toggle_recording(self):
+        """Toggle recording state"""
+        if not self.is_admin:
+            response = messagebox.askyesno(
+                "Administrator Required", 
+                "Administrator privileges are required to modify files in Program Files.\n\n"
+                "Would you like to restart the program as Administrator?",
+                icon='warning'
+            )
+            if response:
+                self.restart_as_admin()
+            return
+        
+        if not self.recording:
+            # Start recording
+            if self.set_recording(True):
+                self.recording = True
+                self.recording_button.config(text="Stop recording", state='disabled')
+                self.recording_status_label.config(text="Recording: On", foreground="red")
+                # Re-enable button after 2 seconds
+                self.root.after(2000, self.enable_stop_button)
+        else:
+            # Stop recording
+            if self.set_recording(False):
+                self.recording = False
+                self.recording_button.config(text="Start recording")
+                self.recording_status_label.config(text="Recording: Off", foreground="gray")
+                # Copy the latest recording
+                self.copy_latest_recording()
+    
+    def copy_latest_recording(self):
+        """Copy the latest recording folder to ./Recordings/"""
+        source_dir = r"C:\ProgramData\Simulated Reality\Eye Tracker\Recordings"
+        dest_base = os.path.join(self.get_executable_dir(), "Recordings")
+        
+        if not os.path.exists(source_dir):
+            messagebox.showwarning("Warning", f"Recording source folder not found:\n{source_dir}")
+            return
+        
+        # Find the latest recording folder (format: 2026-06-26___14_06_47)
+        try:
+            folders = [f for f in os.listdir(source_dir) 
+                      if os.path.isdir(os.path.join(source_dir, f))]
+            
+            if not folders:
+                messagebox.showwarning("Warning", "No recording folders found.")
+                return
+            
+            # Sort by folder name (timestamp format allows alphabetical sorting)
+            folders.sort(reverse=True)
+            latest_folder = folders[0]
+            
+            source_path = os.path.join(source_dir, latest_folder)
+            
+            # Create destination directory if it doesn't exist
+            if not os.path.exists(dest_base):
+                os.makedirs(dest_base)
+            
+            dest_path = os.path.join(dest_base, latest_folder)
+            
+            # Copy the folder
+            if os.path.exists(dest_path):
+                shutil.rmtree(dest_path)  # Remove if already exists
+            
+            shutil.copytree(source_path, dest_path)
+            
+            messagebox.showinfo("Recording Saved", 
+                              f"Recording copied to:\n{dest_path}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to copy recording:\n{str(e)}")
+    
+    def enable_stop_button(self):
+        """Re-enable the stop recording button after delay"""
+        if self.recording:  # Only if still recording
+            self.recording_button.config(state='normal')
+    
+    def set_recording(self, state):
+        """Set recording parameter in INI file"""
+        config = self.read_ini()
+        if config is None:
+            return False
+        
+        section = 'Recorder'
+        
+        # Create section if it doesn't exist
+        if not config.has_section(section):
+            config.add_section(section)
+        
+        # Set recording value
+        config.set(section, 'record', 'true' if state else 'false')
+        
+        return self.write_ini(config)
+    
+    def remove_recording_from_ini(self):
+        """Remove recording parameter from INI file on app close"""
+        config = self.read_ini()
+        if config is None:
+            return False
+        
+        section = 'Recorder'
+        
+        if config.has_section(section) and config.has_option(section, 'record'):
+            config.remove_option(section, 'record')
+            # If section is now empty, remove it
+            if len(config.options(section)) == 0:
+                config.remove_section(section)
+            return self.write_ini(config)
+        
+        return True
     
     def get_executable_dir(self):
         """Get the directory where the executable is located (for saving files)"""
@@ -688,11 +830,26 @@ class MultivariateSwitcherGUI:
             self.status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
             self.stab_status_label.config(text="Current: Hidden (MV Testing)", foreground="purple")
             
+            # Start recording if checkbox is checked
+            if self.mv_allow_recording.get():
+                self.set_recording(True)
+                self.recording = True
+                self.recording_button.config(text="Stop recording", state='disabled')
+                self.recording_status_label.config(text="Recording: On", foreground="red")
+            
             # Start test sequence
             self.start_mv_test_sequence()
         else:
             # Exiting multivariate testing mode
             self.mv_testing_mode = False
+            
+            # Stop recording if it was started for testing
+            if self.recording and self.mv_allow_recording.get():
+                self.set_recording(False)
+                self.recording = False
+                self.recording_button.config(text="Start recording", state='normal')
+                self.recording_status_label.config(text="Recording: Off", foreground="gray")
+                self.copy_latest_recording()
             
             # Update UI - re-enable all buttons
             self.mv_button.config(text="Start multivariate testing 1", state='normal')
@@ -804,6 +961,14 @@ class MultivariateSwitcherGUI:
     
     def finish_mv_testing(self):
         """Complete multivariate testing and save results"""
+        # Stop recording if it was started for testing
+        if self.recording and self.mv_allow_recording.get():
+            self.set_recording(False)
+            self.recording = False
+            self.recording_button.config(text="Start recording", state='normal')
+            self.recording_status_label.config(text="Recording: Off", foreground="gray")
+            self.copy_latest_recording()
+        
         # Save results to CSV with test number in filename
         log_filename = f"multivariate_testing_{self.active_test_number}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         log_path = os.path.join(self.get_executable_dir(), log_filename)
