@@ -10,6 +10,32 @@ from datetime import datetime
 import csv
 import shutil
 import time
+import winreg
+from win32api import GetFileVersionInfo
+
+# --- Helper functions for version extraction ---
+
+def get_registry_path(key_path):
+    """Get path from Windows registry"""
+    try:
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
+        value, _ = winreg.QueryValueEx(key, "")
+        winreg.CloseKey(key)
+        return value
+    except FileNotFoundError:
+        return None
+
+def get_exe_version(path):
+    """Get file version from executable"""
+    if not path or not os.path.exists(path):
+        return "not found"
+    try:
+        info = GetFileVersionInfo(path, "\\")
+        ms = info["FileVersionMS"]
+        ls = info["FileVersionLS"]
+        return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}.{ls & 0xFFFF}"
+    except Exception:
+        return "unknown"
 
 class ToolTip:
     """Create a tooltip for a given widget"""
@@ -69,6 +95,8 @@ class MultivariateSwitcherGUI:
             self.product_code = self.load_product_code()
             self.device_info = None
         
+
+        
         # Build INI file path
         self.update_ini_path()
         
@@ -109,15 +137,19 @@ class MultivariateSwitcherGUI:
         device_frame.grid(row=0, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
         
         if self.device_info:
+            sr_service_version = self.device_info.get('sr_service_version', 'N/A')
+            eyetracker_version = self.device_info.get('eyetracker_version', 'N/A')
             lens_version = self.device_info.get('lens_version', 'N/A')
             lens_serial = self.device_info.get('lens_serial', 'N/A')
             sr_serial = self.device_info.get('sr_serial', 'N/A')
             product_code = self.device_info.get('product_code', 'N/A')
             
-            ttk.Label(device_frame, text=f"Lens version:  {lens_version}", font=("Consolas", 9)).grid(row=0, column=0, sticky=tk.W, pady=2)
-            ttk.Label(device_frame, text=f"Lens serial:   {lens_serial}", font=("Consolas", 9)).grid(row=1, column=0, sticky=tk.W, pady=2)
-            ttk.Label(device_frame, text=f"SR serial:     {sr_serial}", font=("Consolas", 9)).grid(row=2, column=0, sticky=tk.W, pady=2)
-            ttk.Label(device_frame, text=f"Product code:  {product_code}", font=("Consolas", 9, 'bold')).grid(row=3, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"SR Service:    {sr_service_version}", font=("Consolas", 9)).grid(row=0, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"Eye Tracker:   {eyetracker_version}", font=("Consolas", 9)).grid(row=1, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"Lens version:  {lens_version}", font=("Consolas", 9)).grid(row=2, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"Lens serial:   {lens_serial}", font=("Consolas", 9)).grid(row=3, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"SR serial:     {sr_serial}", font=("Consolas", 9)).grid(row=4, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"Product code:  {product_code}", font=("Consolas", 9, 'bold')).grid(row=5, column=0, sticky=tk.W, pady=2)
         else:
             ttk.Label(device_frame, text=f"Product code:  {self.product_code} (from settings)", 
                      font=("Consolas", 9)).grid(row=0, column=0, sticky=tk.W, pady=2)
@@ -480,6 +512,22 @@ class MultivariateSwitcherGUI:
         try:
             SR_BIN = r"C:\Program Files\LeiaSR\Platform\bin"
             
+            # Get SR Service and Eye Tracker versions from registry
+            sr_service_dir = get_registry_path(r"SOFTWARE\Dimenco\Simulated Reality")
+            eyetracker_dir = get_registry_path(r"SOFTWARE\Dimenco\Eye Tracker")
+            
+            sr_service_exe = os.path.join(sr_service_dir, "bin", "SRService.exe") if sr_service_dir else None
+            if sr_service_exe and not os.path.exists(sr_service_exe):
+                sr_service_exe = os.path.join(sr_service_dir, "bin", "srserver.exe")
+            
+            eyetracker_exe = os.path.join(eyetracker_dir, "bin", "SREyeTracker.exe") if eyetracker_dir else None
+            if eyetracker_exe and not os.path.exists(eyetracker_exe):
+                eyetracker_exe = os.path.join(eyetracker_dir, "bin", "DimencoEyeTracker.exe")
+            
+            sr_service_version = get_exe_version(sr_service_exe)
+            eyetracker_version = get_exe_version(eyetracker_exe)
+            
+            # Load SR SDK
             core = ctypes.CDLL(os.path.join(SR_BIN, "SimulatedRealityCore.dll"))
             disp = ctypes.CDLL(os.path.join(SR_BIN, "SimulatedRealityDisplays.dll"))
             
@@ -523,6 +571,8 @@ class MultivariateSwitcherGUI:
                 product_code = sr_serial[8:10] if len(sr_serial) > 9 else None
             
             return {
+                'sr_service_version': sr_service_version,
+                'eyetracker_version': eyetracker_version,
                 'lens_version': lens_version,
                 'lens_serial': lens_serial,
                 'sr_serial': sr_serial,
