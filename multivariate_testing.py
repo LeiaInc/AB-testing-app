@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime
 import csv
 import shutil
+import time
 
 class ToolTip:
     """Create a tooltip for a given widget"""
@@ -59,8 +60,14 @@ class MultivariateSwitcherGUI:
         # Recording state
         self.recording = False
         
-        # Load product code from settings
-        self.product_code = self.load_product_code()
+        # Try to extract device info, fall back to saved/default for product code
+        self.device_info = self.extract_device_info()
+        if self.device_info and self.device_info.get('product_code'):
+            self.product_code = self.device_info['product_code']
+            self.save_product_code(self.product_code)
+        else:
+            self.product_code = self.load_product_code()
+            self.device_info = None
         
         # Build INI file path
         self.update_ini_path()
@@ -97,18 +104,25 @@ class MultivariateSwitcherGUI:
         
         # === LEFT FRAME: Switcher Controls ===
         
-        # Product code frame
-        product_frame = ttk.Frame(left_frame)
-        product_frame.grid(row=0, column=0, columnspan=2, pady=10)
+        # Device info frame
+        device_frame = ttk.LabelFrame(left_frame, text="Device Info", padding="10")
+        device_frame.grid(row=0, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
         
-        ttk.Label(product_frame, text="Product Code:", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
-        
-        self.product_code_var = tk.StringVar(value=self.product_code)
-        product_entry = ttk.Entry(product_frame, textvariable=self.product_code_var, width=10)
-        product_entry.pack(side=tk.LEFT, padx=5)
-        
-        apply_button = ttk.Button(product_frame, text="Apply", command=self.apply_product_code)
-        apply_button.pack(side=tk.LEFT, padx=5)
+        if self.device_info:
+            lens_version = self.device_info.get('lens_version', 'N/A')
+            lens_serial = self.device_info.get('lens_serial', 'N/A')
+            sr_serial = self.device_info.get('sr_serial', 'N/A')
+            product_code = self.device_info.get('product_code', 'N/A')
+            
+            ttk.Label(device_frame, text=f"Lens version:  {lens_version}", font=("Consolas", 9)).grid(row=0, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"Lens serial:   {lens_serial}", font=("Consolas", 9)).grid(row=1, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"SR serial:     {sr_serial}", font=("Consolas", 9)).grid(row=2, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text=f"Product code:  {product_code}", font=("Consolas", 9, 'bold')).grid(row=3, column=0, sticky=tk.W, pady=2)
+        else:
+            ttk.Label(device_frame, text=f"Product code:  {self.product_code} (from settings)", 
+                     font=("Consolas", 9)).grid(row=0, column=0, sticky=tk.W, pady=2)
+            ttk.Label(device_frame, text="Device not detected - using saved value", 
+                     font=("Arial", 8), foreground="orange").grid(row=1, column=0, sticky=tk.W, pady=2)
         
         # Current status label
         self.status_label = ttk.Label(left_frame, text="Current: Unknown", 
@@ -461,6 +475,63 @@ class MultivariateSwitcherGUI:
                 pass
         return "BC"  # Default value
     
+    def extract_device_info(self):
+        """Extract device info from connected device using SR SDK"""
+        try:
+            SR_BIN = r"C:\Program Files\LeiaSR\Platform\bin"
+            
+            core = ctypes.CDLL(os.path.join(SR_BIN, "SimulatedRealityCore.dll"))
+            disp = ctypes.CDLL(os.path.join(SR_BIN, "SimulatedRealityDisplays.dll"))
+            
+            core.newSRContextLensPreference.restype = ctypes.c_void_p
+            core.newSRContextLensPreference.argtypes = [ctypes.c_bool]
+            context = core.newSRContextLensPreference(False)
+            
+            if not context:
+                return None  # SR Service not running
+            
+            disp.createSwitchableLensHintAdmin.restype = ctypes.c_void_p
+            disp.createSwitchableLensHintAdmin.argtypes = [ctypes.c_void_p]
+            lens_admin = disp.createSwitchableLensHintAdmin(context)
+            
+            core.initializeSRContext.argtypes = [ctypes.c_void_p]
+            core.initializeSRContext(context)
+            
+            time.sleep(0.5)
+            
+            # Get lens version
+            disp.getVersion.restype = ctypes.c_char_p
+            disp.getVersion.argtypes = [ctypes.c_void_p]
+            lens_version = disp.getVersion(lens_admin).decode()
+            
+            # Get lens serial
+            disp.getSerialNumber.restype = ctypes.c_char_p
+            disp.getSerialNumber.argtypes = [ctypes.c_void_p]
+            lens_serial = disp.getSerialNumber(lens_admin).decode()
+            
+            # Get SR serial
+            disp.getAdditionalSerialNumber.restype = ctypes.c_char_p
+            disp.getAdditionalSerialNumber.argtypes = [ctypes.c_void_p, ctypes.c_uint8]
+            sr_serial = disp.getAdditionalSerialNumber(lens_admin, 4).decode()
+            
+            # Check if serial is empty (all null chars or empty string)
+            if all(c == '\x00' for c in sr_serial) or sr_serial == '':
+                sr_serial = "Not set"
+                product_code = None
+            else:
+                # Extract product code (characters 8-10 of serial number)
+                product_code = sr_serial[8:10] if len(sr_serial) > 9 else None
+            
+            return {
+                'lens_version': lens_version,
+                'lens_serial': lens_serial,
+                'sr_serial': sr_serial,
+                'product_code': product_code
+            }
+        except Exception as e:
+            # If extraction fails, return None to fall back to saved/default value
+            return None
+    
     def save_product_code(self, code):
         """Save product code to settings file"""
         config = configparser.ConfigParser()
@@ -476,29 +547,6 @@ class MultivariateSwitcherGUI:
     def update_ini_path(self):
         """Update the INI file path based on product code"""
         self.ini_path = rf"C:\Program Files\LeiaSR\Tracker\products\{self.product_code}\ft_user.ini"
-    
-    def apply_product_code(self):
-        """Apply new product code and update path"""
-        new_code = self.product_code_var.get().strip()
-        if not new_code:
-            messagebox.showwarning("Warning", "Product code cannot be empty")
-            return
-        
-        self.product_code = new_code
-        self.update_ini_path()
-        self.save_product_code(new_code)
-        
-        # Update path label
-        self.path_label.config(text=f"Config: ...\\{self.product_code}\\ft_user.ini")
-        
-        # Update status to show current algorithm for this product code
-        self.update_status()
-        
-        # Check if file exists
-        if not os.path.exists(self.ini_path):
-            messagebox.showwarning("Warning", f"Product code updated to: {new_code}\n\nNote: Config file not found at:\n{self.ini_path}")
-        else:
-            messagebox.showinfo("Success", f"Product code updated to: {new_code}")
     
     def read_ini(self):
         """Read the INI file and return ConfigParser object"""
