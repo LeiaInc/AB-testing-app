@@ -49,7 +49,7 @@ if (-not $pythonCmd) {
 Write-Host ""
 Write-Host "[2/6] Checking required packages..." -ForegroundColor Yellow
 
-$requiredPackages = @("pyinstaller", "pandas", "openpyxl")
+$requiredPackages = @("pyinstaller", "pandas", "openpyxl", "pywin32")
 foreach ($package in $requiredPackages) {
     $installed = & $pythonCmd -m pip show $package 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -179,7 +179,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('abtesting_instructions', 'abtesting_instructions')],
-    hiddenimports=['pandas', 'openpyxl'],
+    hiddenimports=['pandas', 'openpyxl', 'win32api', 'win32con', 'pywintypes'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
