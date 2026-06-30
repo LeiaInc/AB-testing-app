@@ -95,13 +95,15 @@ class MultivariateSwitcherGUI:
             self.product_code = self.load_product_code()
             self.device_info = None
         
-
-        
         # Build INI file path
         self.update_ini_path()
         
         # Check if running as admin
         self.is_admin = self.check_admin()
+        
+        # Create session folder and log session info
+        self.session_folder = self.create_session_folder()
+        self.log_session_info()
         
         # Eye Stabilization algorithm configurations
         self.stab_algo_configs = {
@@ -373,9 +375,9 @@ class MultivariateSwitcherGUI:
                 self.copy_latest_recording()
     
     def copy_latest_recording(self):
-        """Copy the latest recording folder to ./Recordings/"""
+        """Copy the latest recording folder to session folder"""
         source_dir = r"C:\ProgramData\Simulated Reality\Eye Tracker\Recordings"
-        dest_base = os.path.join(self.get_executable_dir(), "Recordings")
+        dest_base = os.path.join(self.session_folder, "Recordings")
         
         if not os.path.exists(source_dir):
             messagebox.showwarning("Warning", f"Recording source folder not found:\n{source_dir}")
@@ -470,6 +472,69 @@ class MultivariateSwitcherGUI:
         else:
             # Running as script
             return os.path.dirname(os.path.abspath(__file__))
+    
+    def create_session_folder(self):
+        """Create a session folder with timestamp for logging all data"""
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        session_name = f"session_{timestamp}"
+        session_path = os.path.join(self.get_executable_dir(), session_name)
+        
+        try:
+            os.makedirs(session_path, exist_ok=True)
+        except Exception as e:
+            # Fall back to executable dir if can't create folder
+            session_path = self.get_executable_dir()
+        
+        return session_path
+    
+    def log_session_info(self):
+        """Log session information including device info and software versions"""
+        info_path = os.path.join(self.session_folder, "session_info.txt")
+        
+        try:
+            with open(info_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 60 + "\n")
+                f.write("MULTIVARIATE TESTING SESSION INFO\n")
+                f.write("=" * 60 + "\n\n")
+                
+                f.write(f"Session started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Session folder: {self.session_folder}\n\n")
+                
+                f.write("-" * 40 + "\n")
+                f.write("SOFTWARE VERSIONS\n")
+                f.write("-" * 40 + "\n")
+                
+                if self.device_info:
+                    f.write(f"SR Service version:    {self.device_info.get('sr_service_version', 'N/A')}\n")
+                    f.write(f"Eye Tracker version:   {self.device_info.get('eyetracker_version', 'N/A')}\n")
+                    f.write(f"Lens version:          {self.device_info.get('lens_version', 'N/A')}\n")
+                else:
+                    f.write("Device not detected - versions unavailable\n")
+                
+                f.write("\n")
+                f.write("-" * 40 + "\n")
+                f.write("DEVICE INFO\n")
+                f.write("-" * 40 + "\n")
+                
+                if self.device_info:
+                    f.write(f"Lens serial:           {self.device_info.get('lens_serial', 'N/A')}\n")
+                    f.write(f"SR serial:             {self.device_info.get('sr_serial', 'N/A')}\n")
+                    f.write(f"Product code:          {self.device_info.get('product_code', 'N/A')}\n")
+                else:
+                    f.write(f"Product code:          {self.product_code} (from settings)\n")
+                    f.write("Device not connected or SR Service not running\n")
+                
+                f.write("\n")
+                f.write("-" * 40 + "\n")
+                f.write("SYSTEM INFO\n")
+                f.write("-" * 40 + "\n")
+                f.write(f"Running as admin:      {self.is_admin}\n")
+                f.write(f"Config file:           {self.ini_path}\n")
+                f.write("\n")
+                f.write("=" * 60 + "\n")
+                
+        except Exception as e:
+            pass  # Don't fail if we can't write session info
     
     def check_admin(self):
         """Check if running with administrator privileges"""
@@ -1067,9 +1132,9 @@ class MultivariateSwitcherGUI:
             self.recording_status_label.config(text="Recording: Off", foreground="gray")
             self.copy_latest_recording()
         
-        # Save results to CSV with test number in filename
-        log_filename = f"multivariate_testing_{self.active_test_number}_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        log_path = os.path.join(self.get_executable_dir(), log_filename)
+        # Save results to CSV in session folder
+        log_filename = f"multivariate_testing_{self.active_test_number}_results.csv"
+        log_path = os.path.join(self.session_folder, log_filename)
         
         try:
             with open(log_path, 'w', newline='', encoding='utf-8') as f:
@@ -1080,7 +1145,7 @@ class MultivariateSwitcherGUI:
                     writer.writerows(self.mv_test_results)
             
             messagebox.showinfo("Multivariate Testing Complete", 
-                              f"All tests completed!\n\nResults saved to:\n{log_filename}")
+                              f"All tests completed!\n\nResults saved to:\n{self.session_folder}\\{log_filename}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save results:\n{str(e)}")
         
