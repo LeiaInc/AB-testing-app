@@ -83,6 +83,24 @@ class MultivariateSwitcherGUI:
         self.mv_test_results = []
         self.active_test_number = 1  # Track which test button was clicked (1, 2, or 3)
         
+        # Algorithm option sets for multivariate testing
+        self.mv_algorithm_sets = {
+            "Set B: BlinkEye+Algo1, BlinkEye+NoStab, MediaPipe+NoStab": [
+                ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
+                ("BLINKEYE", 3),   # BLINKEYE, No stabilization
+                ("MEDIAPIPE", 3),  # MEDIAPIPE, No stabilization
+            ],
+            "Set A: BlinkEye+Algo1, BlinkEye+Algo2, MediaPipe+Algo2": [
+                ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
+                ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
+                ("MEDIAPIPE", 2),  # MEDIAPIPE, Algorithm 2
+            ],
+        }
+        
+        # Track algorithm set usage
+        self.mv_initial_algo_set = None
+        self.mv_algo_set_changed = False
+        
         # Recording state
         self.recording = False
         
@@ -266,11 +284,27 @@ class MultivariateSwitcherGUI:
                                     command=lambda: self.toggle_mv_testing(2))
         self.mv_button2.grid(row=4, column=0, pady=10, ipadx=20, ipady=10)
         
+        # Algorithm set selection (with warning)
+        algo_set_frame = ttk.Frame(mv_frame)
+        algo_set_frame.grid(row=5, column=0, pady=10)
+        
+        ttk.Label(algo_set_frame, text="Algorithm Set:", font=('Arial', 9)).pack(side=tk.LEFT, padx=(0, 5))
+        self.mv_algo_set_var = tk.StringVar()
+        self.mv_algo_set_combo = ttk.Combobox(algo_set_frame, textvariable=self.mv_algo_set_var,
+                                              values=list(self.mv_algorithm_sets.keys()),
+                                              state='readonly', width=45)
+        self.mv_algo_set_combo.current(0)  # Set B (new) as default
+        self.mv_algo_set_combo.pack(side=tk.LEFT)
+        self.mv_algo_set_combo.bind('<<ComboboxSelected>>', self.on_algo_set_changed)
+        
+        ttk.Label(algo_set_frame, text="⚠ Do not change", font=('Arial', 9, 'bold'), 
+                  foreground='red').pack(side=tk.LEFT, padx=(10, 0))
+        
         # Allow recording checkbox
         self.mv_allow_recording = tk.BooleanVar(value=False)
         self.mv_recording_checkbox = ttk.Checkbutton(mv_frame, text="Allow recording during testing",
                                                      variable=self.mv_allow_recording)
-        self.mv_recording_checkbox.grid(row=5, column=0, pady=10)
+        self.mv_recording_checkbox.grid(row=6, column=0, pady=10)
         
         # Multivariate Testing status field (initially hidden)
         self.mv_field_frame = ttk.Frame(mv_frame)
@@ -535,6 +569,24 @@ class MultivariateSwitcherGUI:
                 
         except Exception as e:
             pass  # Don't fail if we can't write session info
+    
+    def log_algo_set_info(self):
+        """Append algorithm set usage info to session info file"""
+        info_path = os.path.join(self.session_folder, "session_info.txt")
+        
+        try:
+            with open(info_path, 'a', encoding='utf-8') as f:
+                f.write("\n")
+                f.write("-" * 40 + "\n")
+                f.write(f"MULTIVARIATE TEST {self.active_test_number} - ALGORITHM SET\n")
+                f.write("-" * 40 + "\n")
+                f.write(f"Completed at:          {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Initial set:           {self.mv_initial_algo_set}\n")
+                f.write(f"Final set:             {self.mv_algo_set_var.get()}\n")
+                f.write(f"Set changed:           {'YES - WARNING!' if self.mv_algo_set_changed else 'No'}\n")
+                f.write("\n")
+        except Exception as e:
+            pass  # Don't fail if we can't write
     
     def check_admin(self):
         """Check if running with administrator privileges"""
@@ -937,6 +989,8 @@ class MultivariateSwitcherGUI:
             'repetition': self.mv_current_repetition + 1,
             'algorithm': current_algo,
             'stabilization': current_stab,
+            'algorithm_set': self.mv_algo_set_var.get(),
+            'set_changed_during_session': self.mv_algo_set_changed,
             'feedback': feedback,
             'comments': comment if comment is not None else ""
         }
@@ -958,6 +1012,13 @@ class MultivariateSwitcherGUI:
         
         # Load and display current value
         self.update_status()
+    
+    def on_algo_set_changed(self, event=None):
+        """Called when the algorithm set combobox selection changes"""
+        if self.mv_testing_mode and self.mv_initial_algo_set is not None:
+            current_set = self.mv_algo_set_var.get()
+            if current_set != self.mv_initial_algo_set:
+                self.mv_algo_set_changed = True
     
     def toggle_mv_testing(self, test_number=1):
         """Toggle Multivariate testing mode"""
@@ -981,6 +1042,9 @@ class MultivariateSwitcherGUI:
             # Enter multivariate testing mode
             self.mv_testing_mode = True
             self.active_test_number = test_number
+            
+            # Disable algorithm set dropdown during testing
+            self.mv_algo_set_combo.config(state='disabled')
             
             # Update UI - disable other buttons and update active button
             buttons = {1: self.mv_button, 2: self.mv_button2}
@@ -1017,6 +1081,7 @@ class MultivariateSwitcherGUI:
             # Update UI - re-enable all buttons
             self.mv_button.config(text="Start multivariate testing 1", state='normal')
             self.mv_button2.config(text="Start multivariate testing 2", state='normal')
+            self.mv_algo_set_combo.config(state='readonly')
             self.mv_field_frame.grid_remove()
             self.update_status()
             
@@ -1069,8 +1134,12 @@ class MultivariateSwitcherGUI:
         self.mv_current_repetition = 0
         self.mv_test_results = []
         
+        # Track algorithm set at start of testing
+        self.mv_initial_algo_set = self.mv_algo_set_var.get()
+        self.mv_algo_set_changed = False
+        
         # Show test UI
-        self.mv_field_frame.grid(row=7, column=0, pady=10)
+        self.mv_field_frame.grid(row=8, column=0, pady=10)
         self.mv_feedback_frame.pack_forget()
         
         # Show first test
@@ -1083,12 +1152,9 @@ class MultivariateSwitcherGUI:
             self.finish_mv_testing()
             return
         
-        # Both tests use the same algorithm options
-        mv_options = [
-            ("BLINKEYE", 1),   # BLINKEYE, Algorithm 1
-            ("BLINKEYE", 2),   # BLINKEYE, Algorithm 2
-            ("MEDIAPIPE", 2),  # MEDIAPIPE, Algorithm 2
-        ]
+        # Get algorithm options from selected set
+        selected_set = self.mv_algo_set_var.get()
+        mv_options = self.mv_algorithm_sets.get(selected_set, list(self.mv_algorithm_sets.values())[0])
         selected_algo, selected_stab = random.choice(mv_options)
         
         if not self.set_algo(selected_algo):
@@ -1144,6 +1210,9 @@ class MultivariateSwitcherGUI:
                     writer.writeheader()
                     writer.writerows(self.mv_test_results)
             
+            # Log algorithm set info to session info file
+            self.log_algo_set_info()
+            
             messagebox.showinfo("Multivariate Testing Complete", 
                               f"All tests completed!\n\nResults saved to:\n{self.session_folder}\\{log_filename}")
         except Exception as e:
@@ -1153,6 +1222,7 @@ class MultivariateSwitcherGUI:
         self.mv_testing_mode = False
         self.mv_button.config(text="Start multivariate testing 1", state='normal')
         self.mv_button2.config(text="Start multivariate testing 2", state='normal')
+        self.mv_algo_set_combo.config(state='readonly')
         self.mv_field_frame.grid_remove()
         self.update_status()
 
